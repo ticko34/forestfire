@@ -176,6 +176,11 @@ const uiWaterFill = document.getElementById("water-progress-fill");
 const SCREEN_WIDTH = 800;
 const SCREEN_HEIGHT = 600;
 
+// 💡 [추가] 점수 관련 밸런스 설정 상수화
+const SCORE_EXTINGUISH = 10; // 불 진화 점수
+const SCORE_RESCUE = 50;     // 시민 구조 점수
+const SCORE_PENALTY = 20;    // 시민 피격 감점
+
 let gameState = "MENU"; 
 let controlMode = null; 
 
@@ -188,7 +193,7 @@ const chopperWidth = 80;
 const chopperHeight = 50;
 
 let waterParticles = [];
-let scoreEffects = []; // 💡 [추가] 점수 변동 이펙트를 담아둘 배열
+let scoreEffects = []; 
 let shootCooldown = 0;
 
 const MAX_TIME = 60.0;
@@ -200,10 +205,6 @@ const WATER_DRAIN = 3.0;
 const WATER_RECHARGE = 1;
 let isRecharging = false;
 
-const HUMAN_SCORE = 50;
-const WATER_SCORE = 30;
-const HUMANWATER_SCORE = 10;
-    
 let score = 0;
 let keys = {};
 let isShooting = false;
@@ -216,15 +217,14 @@ function randomRange(min, max) {
     return Math.random() * (max - min) + min;
 }
 
-// 💡 [추가] 점수 텍스트 이펙트를 생성하는 헬퍼 함수
 function createScoreEffect(x, y, text, color) {
     scoreEffects.push({
         x: x,
         y: y,
         text: text,
         color: color,
-        alpha: 1.0,  // 투명도 (1.0에서 시작해 0으로 소멸)
-        ySpeed: 1.5  // 위로 떠오르는 속도
+        alpha: 1.0,  
+        ySpeed: 1.5  
     });
 }
 
@@ -234,7 +234,7 @@ function resetGame() {
     isRecharging = false;
     score = 0;
     waterParticles = [];
-    scoreEffects = []; // 💡 리셋 시 기존 이펙트 깔끔하게 비우기
+    scoreEffects = []; 
     chopperX = SCREEN_WIDTH / 2;
     chopperY = SCREEN_HEIGHT - 200;
     burningTrees = Array.from({length: 5}, () => [randomRange(50, SCREEN_WIDTH - 50), randomRange(-300, 0), "BURNING"]);
@@ -386,7 +386,7 @@ function updateAndRender() {
         uiTime.innerText = `${Math.max(0, Math.floor(timeLeft))} 초`;
         
         if (timeLeft <= 10) {
-            uiTime.style.color = "#ff3232"; // 10초 이하면 빨간색 경고
+            uiTime.style.color = "#ff3232"; 
         } else {
             uiTime.style.color = "#ffff64";
         }
@@ -494,11 +494,12 @@ function updateAndRender() {
             }
 
             waterParticles.forEach(p => {
-                if (p[6] === 1 && tState === "BURNING") {
+                // 💡 [버그 수정] tState 대신 tree[2]를 직접 조회하여 실시간 상태 확인 (중첩 점수 획득 차단)
+                if (p[6] === 1 && tree[2] === "BURNING") {
                     let dist = Math.sqrt(Math.pow(tX - p[0], 2) + Math.pow(tY - p[1], 2));
                     if (dist < (20 + p[5])) {
-                        score += WATER_SCORE;
-                        createScoreEffect(tX, tY - 15, "+10", "#5cf55c"); // 💡 [추가] 불 진화 시 초록색 +10 이펙트
+                        score += SCORE_EXTINGUISH; // 💡 상수 변수 적용
+                        createScoreEffect(tX, tY - 15, `+${SCORE_EXTINGUISH}`, "#5cf55c"); 
                         tree[2] = "EXTINGUISHED"; 
                     }
                 }
@@ -519,8 +520,8 @@ function updateAndRender() {
 
             let distChopper = Math.sqrt(Math.pow((chopperX + chopperWidth / 2) - person[0], 2) + Math.pow((chopperY + chopperHeight / 2) - person[1], 2));
             if (distChopper < 40) {
-                score += HUMAN_SCORE;
-                createScoreEffect(person[0], person[1] - 10, "+50", "#5cf55c"); // 💡 [추가] 구조 성공 시 초록색 +50 이펙트
+                score += SCORE_RESCUE; // 💡 상수 변수 적용
+                createScoreEffect(person[0], person[1] - 10, `+${SCORE_RESCUE}`, "#5cf55c"); 
                 person[0] = randomRange(50, SCREEN_WIDTH - 50);
                 person[1] = randomRange(-300, -100);
             }
@@ -530,8 +531,8 @@ function updateAndRender() {
                 if (p[6] === 1) {
                     let distP = Math.sqrt(Math.pow(p[0] - person[0], 2) + Math.pow(p[1] - person[1], 2));
                     if (distP < (15 + p[5])) {
-                        score -= HUMANWATER_SCORE;
-                        createScoreEffect(person[0], person[1] - 10, "-20", "#ff3232"); // 💡 [추가] 시민이 물 맞을 시 빨간색 -20 이펙트
+                        score -= SCORE_PENALTY; // 💡 상수 변수 적용
+                        createScoreEffect(person[0], person[1] - 10, `-${SCORE_PENALTY}`, "#ff3232"); 
                         waterParticles.splice(i, 1);
                         break;
                     }
@@ -578,24 +579,21 @@ function updateAndRender() {
         }
 
         // --- ✨ 점수 변동 이펙트 업데이트 및 그리기 ---
-        // 💡 [추가] 생성된 텍스트들을 위로 올리고 서서히 흐려지게 만드는 루프
         for (let i = scoreEffects.length - 1; i >= 0; i--) {
             let fx = scoreEffects[i];
-            fx.y -= fx.ySpeed;      // 위로 스르륵 이동
-            fx.alpha -= 0.04;       // 서서히 투명화
+            fx.y -= fx.ySpeed;      
+            fx.alpha -= 0.04;       
 
-            // 완전히 투명해지면 배열에서 관리 제외
             if (fx.alpha <= 0) {
                 scoreEffects.splice(i, 1);
                 continue;
             }
 
             ctx.save();
-            ctx.globalAlpha = fx.alpha; // 투명도 세팅
+            ctx.globalAlpha = fx.alpha; 
             ctx.fillStyle = fx.color;
             ctx.font = "bold 22px 'Malgun Gothic'";
             ctx.textAlign = "center";
-            // 어두운 배경/숲 위에서도 텍스트가 잘 보이게 얇은 검정 그림자 적용
             ctx.shadowColor = "rgba(0, 0, 0, 0.8)";
             ctx.shadowBlur = 4;
             ctx.fillText(fx.text, fx.x, fx.y);
