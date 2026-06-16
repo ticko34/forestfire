@@ -176,7 +176,6 @@ const uiWaterFill = document.getElementById("water-progress-fill");
 const SCREEN_WIDTH = 800;
 const SCREEN_HEIGHT = 600;
 
-// 💡 [추가] 점수 관련 밸런스 설정 상수화
 const SCORE_EXTINGUISH = 10; // 불 진화 점수
 const SCORE_RESCUE = 50;     // 시민 구조 점수
 const SCORE_PENALTY = 20;    // 시민 피격 감점
@@ -209,7 +208,7 @@ let score = 0;
 let keys = {};
 let isShooting = false;
 
-let burningTrees = [];
+let burningClusters = [];
 let citizens = [];
 let normalTrees = [];
 
@@ -237,7 +236,24 @@ function resetGame() {
     scoreEffects = []; 
     chopperX = SCREEN_WIDTH / 2;
     chopperY = SCREEN_HEIGHT - 200;
-    burningTrees = Array.from({length: 5}, () => [randomRange(50, SCREEN_WIDTH - 50), randomRange(-300, 0), "BURNING"]);
+
+    // 🔥 불타는 나무 군집(Cluster) 생성 로직
+    const CLUSTER_COUNT = 10;      
+    const TREES_PER_CLUSTER = 7;  
+    burningClusters = [];
+
+    for (let i = 0; i < CLUSTER_COUNT; i++) {
+        burningClusters.push({
+            centerX: randomRange(150, SCREEN_WIDTH - 150), 
+            centerY: randomRange(-600 * (i + 1), -600 * i), 
+            trees: Array.from({length: TREES_PER_CLUSTER}, () => [
+                randomRange(-45, 45),  
+                randomRange(-45, 45),  
+                "BURNING"              
+            ])
+        });
+    }
+    
     citizens = Array.from({length: 2}, () => [randomRange(50, SCREEN_WIDTH - 50), randomRange(-500, -100), "ALIVE"]);
     normalTrees = Array.from({length: 15}, () => [randomRange(20, SCREEN_WIDTH - 20), randomRange(-200, SCREEN_HEIGHT), "NORMAL"]);
     
@@ -420,7 +436,7 @@ function updateAndRender() {
             isShooting = aiIsShooting;
         }
 
-        // 🛠️ 물포탄 분사 (직하방 수직 낙하 적용 상태)
+        // 🛠️ 물포탄 분사
         if (isShooting && currentWater > 0 && !isRecharging) { 
             currentWater -= WATER_DRAIN; 
             if (currentWater <= 0) {
@@ -448,12 +464,22 @@ function updateAndRender() {
             }
         }
 
-        // --- 🌲 배경용 일반 나무 그리기 ---
+        // --- 🌲 배경용 일반 나무 업데이트 및 그리기 (2패스 렌더링 분리 완료) ---
+        // 0️⃣ 모든 나무 스크롤 다운 업데이트
         normalTrees.forEach(tree => {
             tree[1] += SCROLL_SPEED;
+        });
+
+        // 1️⃣ [첫 번째 루프] 모든 일반 나무의 '그림자'만 먼저 바닥에 깔아줍니다.
+        normalTrees.forEach(tree => {
             let tX = tree[0]; let tY = tree[1];
             ctx.fillStyle = "rgba(10, 25, 10, 0.35)";
             ctx.beginPath(); ctx.arc(tX + 12, tY + 16, 22, 0, Math.PI * 2); ctx.fill();
+        });
+
+        // 2️⃣ [두 번째 루프] 그림자 레이어 위에 실제 '초록색 잎사귀 몸통'들을 올립니다.
+        normalTrees.forEach(tree => {
+            let tX = tree[0]; let tY = tree[1];
             ctx.fillStyle = "#1B5E20"; 
             ctx.beginPath(); ctx.arc(tX, tY, 22, 0, Math.PI * 2); ctx.fill();
             ctx.fillStyle = "#2E7D32"; 
@@ -461,54 +487,83 @@ function updateAndRender() {
             ctx.fillStyle = "#4CAF50"; 
             ctx.beginPath(); ctx.arc(tX - 5, tY - 5, 12, 0, Math.PI * 2); ctx.fill();
 
+            // 화면 하단 이탈 시 리스폰 처리
             if (tree[1] > SCREEN_HEIGHT + 40) {
                 tree[0] = randomRange(20, SCREEN_WIDTH - 20);
                 tree[1] = randomRange(-100, -40);
             }
         });
 
-        // --- 🔥 불타는 나무 업데이트 ---
-        burningTrees.forEach(tree => {
-            tree[1] += SCROLL_SPEED;
-            let tX = tree[0]; let tY = tree[1]; let tState = tree[2]; 
+        // --- 🔥 불타는 나무 군집 업데이트 및 그리기 ---
+        burningClusters.forEach(cluster => {
+            cluster.centerY += SCROLL_SPEED;
 
-            ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
-            ctx.beginPath(); ctx.arc(tX + 10, tY + 14, 20, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = "#1A1A1A"; 
-            ctx.beginPath(); ctx.arc(tX, tY, 20, 0, Math.PI * 2); ctx.fill();
+            // 1패스: 군집 내부 모든 나무의 그림자 및 베이스 깔기
+            cluster.trees.forEach(tree => {
+                let tX = cluster.centerX + tree[0]; 
+                let tY = cluster.centerY + tree[1]; 
+                let tState = tree[2]; 
 
-            if (tState === "EXTINGUISHED") {
-                ctx.fillStyle = "rgba(100, 100, 100, 0.6)"; 
-                ctx.beginPath(); ctx.arc(tX - 2, tY - 2, 12, 0, Math.PI * 2); ctx.fill();
-            }
-
-            if (tState === "BURNING") {
-                let pulse1 = Math.sin(Date.now() / 90) * 3;
-                let pulse2 = Math.cos(Date.now() / 70) * 2;
-                ctx.fillStyle = "#FF3D00";
-                ctx.beginPath(); ctx.arc(tX + pulse1, tY + pulse2, 19 + pulse1, 0, Math.PI * 2); ctx.fill();
-                ctx.fillStyle = "#FF9100";
-                ctx.beginPath(); ctx.arc(tX - 2, tY - 2, 13 + pulse2, 0, Math.PI * 2); ctx.fill();
-                ctx.fillStyle = "#FFEA00";
-                ctx.beginPath(); ctx.arc(tX - 4, tY - 4, 7 + pulse1, 0, Math.PI * 2); ctx.fill();
-            }
-
-            waterParticles.forEach(p => {
-                // 💡 [버그 수정] tState 대신 tree[2]를 직접 조회하여 실시간 상태 확인 (중첩 점수 획득 차단)
-                if (p[6] === 1 && tree[2] === "BURNING") {
-                    let dist = Math.sqrt(Math.pow(tX - p[0], 2) + Math.pow(tY - p[1], 2));
-                    if (dist < (20 + p[5])) {
-                        score += SCORE_EXTINGUISH; // 💡 상수 변수 적용
-                        createScoreEffect(tX, tY - 15, `+${SCORE_EXTINGUISH}`, "#5cf55c"); 
-                        tree[2] = "EXTINGUISHED"; 
-                    }
+                if (tState === "BURNING") {
+                    ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+                    ctx.beginPath(); ctx.arc(tX + 10, tY + 14, 20, 0, Math.PI * 2); ctx.fill();
+                    ctx.fillStyle = "#1A1A1A"; 
+                    ctx.beginPath(); ctx.arc(tX, tY, 20, 0, Math.PI * 2); ctx.fill();
+                } else if (tState === "EXTINGUISHED") {
+                    // 💡 꺼진 나무도 배경이 비치지 않도록 완전 불투명한 진한 잿빛(#262626)으로 베이스 고정
+                    ctx.fillStyle = "rgba(0, 0, 0, 0.3)"; // 그림자
+                    ctx.beginPath(); ctx.arc(tX + 8, tY + 10, 18, 0, Math.PI * 2); ctx.fill();
+                    ctx.fillStyle = "#262626"; // 100% 불투명한 숯 색상
+                    ctx.beginPath(); ctx.arc(tX, tY, 18, 0, Math.PI * 2); ctx.fill();
                 }
             });
 
-            if (tree[1] > SCREEN_HEIGHT + 30) {
-                tree[0] = randomRange(50, SCREEN_WIDTH - 50);
-                tree[1] = randomRange(-200, -50);
-                tree[2] = "BURNING"; 
+            // 2패스: 그림자 위에 나무 본체 상태 및 화재 연출 올리기
+            cluster.trees.forEach(tree => {
+                let tX = cluster.centerX + tree[0]; 
+                let tY = cluster.centerY + tree[1]; 
+                let tState = tree[2]; 
+
+                if (tState === "EXTINGUISHED") {
+                    // 💡 안쪽 그루터기 형태도 투명도(alpha) 없는 확실한 불투명 색상으로 레이어링
+                    ctx.fillStyle = "#555555"; // 불투명한 중간 회색
+                    ctx.beginPath(); ctx.arc(tX, tY, 10, 0, Math.PI * 2); ctx.fill();
+                }
+
+                if (tState === "BURNING") {
+                    let pulse1 = Math.sin(Date.now() / 90) * 3;
+                    let pulse2 = Math.cos(Date.now() / 70) * 2;
+                    ctx.fillStyle = "#FF3D00";
+                    ctx.beginPath(); ctx.arc(tX + pulse1, tY + pulse2, 19 + pulse1, 0, Math.PI * 2); ctx.fill();
+                    ctx.fillStyle = "#FF9100";
+                    ctx.beginPath(); ctx.arc(tX - 2, tY - 2, 13 + pulse2, 0, Math.PI * 2); ctx.fill();
+                    ctx.fillStyle = "#FFEA00";
+                    ctx.beginPath(); ctx.arc(tX - 4, tY - 4, 7 + pulse1, 0, Math.PI * 2); ctx.fill();
+                }
+
+                // 물방울 충돌 체크
+                waterParticles.forEach(p => {
+                    if (p[6] === 1 && tree[2] === "BURNING") {
+                        let dist = Math.sqrt(Math.pow(tX - p[0], 2) + Math.pow(tY - p[1], 2));
+                        if (dist < (20 + p[5])) {
+                            score += SCORE_EXTINGUISH; 
+                            createScoreEffect(tX, tY - 15, `+${SCORE_EXTINGUISH}`, "#5cf55c"); 
+                            tree[2] = "EXTINGUISHED"; 
+                        }
+                    }
+                });
+            });
+
+            // 군집 리스폰 조건
+            if (cluster.centerY > SCREEN_HEIGHT + 100) {
+                cluster.centerX = randomRange(150, SCREEN_WIDTH - 150);
+                cluster.centerY = randomRange(-400, -150); 
+                
+                cluster.trees.forEach(tree => {
+                    tree[2] = "BURNING";
+                    tree[0] = randomRange(-45, 45);
+                    tree[1] = randomRange(-45, 45);
+                });
             }
         });
 
@@ -520,7 +575,7 @@ function updateAndRender() {
 
             let distChopper = Math.sqrt(Math.pow((chopperX + chopperWidth / 2) - person[0], 2) + Math.pow((chopperY + chopperHeight / 2) - person[1], 2));
             if (distChopper < 40) {
-                score += SCORE_RESCUE; // 💡 상수 변수 적용
+                score += SCORE_RESCUE; 
                 createScoreEffect(person[0], person[1] - 10, `+${SCORE_RESCUE}`, "#5cf55c"); 
                 person[0] = randomRange(50, SCREEN_WIDTH - 50);
                 person[1] = randomRange(-300, -100);
@@ -531,7 +586,7 @@ function updateAndRender() {
                 if (p[6] === 1) {
                     let distP = Math.sqrt(Math.pow(p[0] - person[0], 2) + Math.pow(p[1] - person[1], 2));
                     if (distP < (15 + p[5])) {
-                        score -= SCORE_PENALTY; // 💡 상수 변수 적용
+                        score -= SCORE_PENALTY; 
                         createScoreEffect(person[0], person[1] - 10, `-${SCORE_PENALTY}`, "#ff3232"); 
                         waterParticles.splice(i, 1);
                         break;
