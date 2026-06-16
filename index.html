@@ -450,39 +450,6 @@ function updateAndRender() {
             }
         });
 
-        // --- 🌊 물포탄 업데이트 및 그리기 ---
-        for (let i = waterParticles.length - 1; i >= 0; i--) {
-            let p = waterParticles[i];
-            if (p[6] === 0) { 
-                p[0] += p[2];
-                p[1] += p[3] + SCROLL_SPEED;
-                p[4] -= 4;
-
-                let currentSize = p[5] * (1.0 + p[4] / 40.0);
-                ctx.beginPath();
-                ctx.fillStyle = "#00BFFF";
-                ctx.arc(p[0], p[1], currentSize, 0, Math.PI * 2);
-                ctx.fill();
-
-                if (p[4] <= 0) {
-                    p[6] = 1; 
-                    p[5] = randomRange(12, 16); 
-                }
-            } else if (p[6] === 1) { 
-                p[1] += SCROLL_SPEED;
-                p[5] -= 1.8; 
-                if (p[5] <= 0 || p[1] > SCREEN_HEIGHT) {
-                    waterParticles.splice(i, 1);
-                    continue;
-                }
-                ctx.beginPath();
-                ctx.strokeStyle = "#1E90FF";
-                ctx.lineWidth = 3.5; 
-                ctx.arc(p[0], p[1], p[5], 0, Math.PI * 2);
-                ctx.stroke();
-            }
-        }
-
         // --- 🔥 불타는 나무 업데이트 ---
         burningTrees.forEach(tree => {
             tree[1] += SCROLL_SPEED;
@@ -556,6 +523,39 @@ function updateAndRender() {
                 person[1] = randomRange(-300, -100);
             }
         });
+
+        // --- 🌊 물포탄 업데이트 및 그리기 ---
+        for (let i = waterParticles.length - 1; i >= 0; i--) {
+            let p = waterParticles[i];
+            if (p[6] === 0) { 
+                p[0] += p[2];
+                p[1] += p[3] + SCROLL_SPEED;
+                p[4] -= 4;
+
+                let currentSize = p[5] * (1.0 + p[4] / 40.0);
+                ctx.beginPath();
+                ctx.fillStyle = "#00BFFF";
+                ctx.arc(p[0], p[1], currentSize, 0, Math.PI * 2);
+                ctx.fill();
+
+                if (p[4] <= 0) {
+                    p[6] = 1; 
+                    p[5] = randomRange(12, 16); 
+                }
+            } else if (p[6] === 1) { 
+                p[1] += SCROLL_SPEED;
+                p[5] -= 1.8; 
+                if (p[5] <= 0 || p[1] > SCREEN_HEIGHT) {
+                    waterParticles.splice(i, 1);
+                    continue;
+                }
+                ctx.beginPath();
+                ctx.strokeStyle = "#1E90FF";
+                ctx.lineWidth = 3.5; 
+                ctx.arc(p[0], p[1], p[5], 0, Math.PI * 2);
+                ctx.stroke();
+            }
+        }
 
         // --- 🚁 플레이어 헬기 그리기 ---
         let cX = chopperX + chopperWidth / 2;
